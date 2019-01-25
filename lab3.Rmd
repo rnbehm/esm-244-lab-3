@@ -1,0 +1,139 @@
+---
+title: "RachelLab3"
+author: "Rachel Behm"
+date: "January 24, 2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Attach packages
+```{r}
+library(tidyverse)
+library(boot) # for bootstrapping
+library(naniar) # for missingness
+library(simputation) # for imputations
+```
+
+A. bootstrapping penguin flipper lengths
+1. get data
+```{r}
+penguins <- read_csv("penguins.csv")
+male_p<- penguins %>% 
+  filter(sex =="MALE")
+
+
+#look at it via ggplot
+
+male_flipper_plot <- ggplot(male_p, aes(x= flipper_length)) +
+  geom_histogram(bins=10) + 
+  theme_light()
+
+#is this normally distributed??? uhhhhhhh no 
+#dont trust the CLT gotta bootstrap
+
+flippers <- male_p %>%
+  pull(flipper_length)
+
+#make a vector of all of the values of the variable flipper_length from male_p so i can use it as a function
+
+```
+
+2. Create a function for bootstrapping
+```{r}
+#find the mean of each of the 22 bootstraps im gonna do from the original 22 male penguin flippers dataset
+
+
+mean_fun <- function(x,i) {mean(x[i])}
+#find the mean of whatever i put in 
+
+#boot example just for funsies and to test
+set.seed(213)
+boot_213 <- boot(flippers, mean_fun, R = 10)
+boot_213
+#do a boot strap of the vector flippers and run it through the function mean_fun. do this 10 times
+# use set seed to make sure it saves the bootstrap version if you want it ( the number means nothing think of it like servers on MS) will help collaborators get the same number
+
+boot_100 <- boot(flippers, mean_fun, R=100)
+#error decreases
+
+#cant plot a vector so what do? just dont give ggplot a DF
+ggplot()+
+  aes(boot_100$t) +
+  geom_histogram()
+
+
+boot_10000 <- boot(flippers, mean_fun, R=10000)
+ggplot()+
+  aes(boot_10000$t) +
+  geom_histogram()
+
+
+#calculate the confidence interval using the boot.ci function in the boot package
+
+boot.ci(boot_10000, conf= 0.95)
+
+```
+
+B.  Using Naniar for missingness
+```{r}
+vis_miss(airquality)
+#percents missing 
+
+gg_miss_var(airquality)
+#gives you counts
+
+#can facet!
+gg_miss_var(airquality, facet= Month)
+
+
+
+ggplot(airquality,
+       aes(x= Ozone,
+           y= Solar.R)) + 
+  geom_point()
+#already uses listwise deletion
+
+
+
+
+#what if we want to know when we have one but not the other?
+ggplot(airquality,
+       aes(x= Ozone,
+           y= Solar.R)) + 
+  geom_miss_point()
+# we can see that there are quite a many instances where solar was measured but not Ozone
+
+
+ggplot(airquality,
+       aes(x= Solar.R,
+           y= Temp)) + 
+  geom_miss_point() +
+  scale_color_manual(values=c("orange", "purple")) +
+  facet_wrap(~Month)
+# we can see what we are missing temporally
+
+
+#create a shadow matrix
+
+na_shadow <- bind_shadow(airquality)
+#will tell you by row if you have NA's in that row (binary indicator per variable)
+
+
+#Imputation via linear regression
+
+airquality%>% 
+  impute_lm(Ozone ~ Temp+Wind) %>%
+  ggplot(aes(x= Temp, y= Ozone)) +
+  geom_point()
+# how do we tell which are fake?
+
+na_shadow %>%
+  impute_lm(Ozone ~ Temp+Wind) %>%
+  ggplot(aes(x= Temp, y= Ozone, color=Ozone_NA)) +
+  geom_point()
+#yay now we can see!!! teal= fake
+```
+
